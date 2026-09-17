@@ -911,3 +911,26 @@ supabase.auth.onAuthStateChange(
 
 window.supabaseClient =
   supabase
+// ==========================================
+// FORCE SETTINGS BUTTON CLICK FIX
+// ==========================================
+
+setTimeout(() => {
+  const settingsBtn = document.querySelector('.gear')
+
+  if (!settingsBtn) return
+
+  settingsBtn.style.position = 'relative'
+  settingsBtn.style.zIndex = '9999'
+  settingsBtn.style.pointerEvents = 'auto'
+  settingsBtn.style.cursor = 'pointer'
+
+  settingsBtn.onclick = (event) => {
+    event.preventDefault()
+    event.stopPropagation()
+
+    if (typeof showSettingsModal === 'function') {
+      showSettingsModal()
+    }
+  }
+}, 300)
