@@ -72,15 +72,15 @@ form.addEventListener('submit', async (event) => {
 
       if (data.session) {
         message('Account created. Opening your world…')
+        await ensureCoupleConnection()
       } else {
         message(
           'Account created! You can now log in. 💗'
         )
-
         setMode('login')
       }
     } else {
-      const { error } =
+      const { data, error } =
         await supabase.auth.signInWithPassword({
           email: email.value.trim(),
           password: password.value
@@ -89,8 +89,12 @@ form.addEventListener('submit', async (event) => {
       if (error) throw error
 
       message('Login successful. Opening your world…')
+
+      await ensureCoupleConnection(data.session)
     }
   } catch (error) {
+    console.error(error)
+
     message(
       error.message ||
         'Something went wrong. Please try again.',
@@ -123,29 +127,8 @@ function showApp(session) {
 }
 
 /* -------------------------------------------------
-   COUPLE CONNECTION
+   COUPLE SETUP UI
 ------------------------------------------------- */
-
-async function getMyProfile() {
-  const {
-    data: { user }
-  } = await supabase.auth.getUser()
-
-  if (!user) return null
-
-  const { data, error } = await supabase
-    .from('profiles')
-    .select('*')
-    .eq('id', user.id)
-    .maybeSingle()
-
-  if (error) {
-    console.error('Profile error:', error)
-    return null
-  }
-
-  return data
-}
 
 function addCoupleSetupStyles() {
   if (document.getElementById('coupleSetupStyles')) return
@@ -176,7 +159,7 @@ function addCoupleSetupStyles() {
       backdrop-filter: blur(18px);
       -webkit-backdrop-filter: blur(18px);
       border: 1px solid rgba(255,255,255,.9);
-      box-shadow: 0 20px 60px rgba(112, 74, 120, .18);
+      box-shadow: 0 20px 60px rgba(112,74,120,.18);
       text-align: center;
     }
 
@@ -208,7 +191,7 @@ function addCoupleSetupStyles() {
       cursor: pointer;
       color: #fff;
       background: linear-gradient(135deg, #f2389b, #9c62ee);
-      box-shadow: 0 10px 25px rgba(210, 65, 160, .2);
+      box-shadow: 0 10px 25px rgba(210,65,160,.2);
     }
 
     .couple-option.secondary {
@@ -240,10 +223,6 @@ function addCoupleSetupStyles() {
       padding: 13px 14px;
       font-size: 16px;
       outline: none;
-    }
-
-    .couple-panel input:focus {
-      border-color: #d85ab5;
     }
 
     .couple-message {
@@ -300,26 +279,18 @@ function createCoupleSetup() {
 
       <div id="coupleChoice">
 
-        <button
-          id="createWorldBtn"
-          class="couple-option"
-        >
+        <button id="createWorldBtn" class="couple-option">
           ✨ Create Our World
         </button>
 
-        <button
-          id="joinWorldBtn"
-          class="couple-option secondary"
-        >
+        <button id="joinWorldBtn" class="couple-option secondary">
           💞 Join Our World
         </button>
 
       </div>
 
-      <div
-        id="createPanel"
-        class="couple-panel hidden"
-      >
+      <div id="createPanel" class="couple-panel hidden">
+
         <label>Your name</label>
 
         <input
@@ -329,23 +300,16 @@ function createCoupleSetup() {
           placeholder="Enter your name"
         />
 
-        <button
-          id="createConfirmBtn"
-          class="couple-option"
-        >
+        <button id="createConfirmBtn" class="couple-option">
           Create Couple ❤️
         </button>
 
-        <div
-          id="createMessage"
-          class="couple-message"
-        ></div>
+        <div id="createMessage" class="couple-message"></div>
+
       </div>
 
-      <div
-        id="joinPanel"
-        class="couple-panel hidden"
-      >
+      <div id="joinPanel" class="couple-panel hidden">
+
         <label>Your name</label>
 
         <input
@@ -365,43 +329,31 @@ function createCoupleSetup() {
           style="text-transform:uppercase"
         />
 
-        <button
-          id="joinConfirmBtn"
-          class="couple-option"
-        >
+        <button id="joinConfirmBtn" class="couple-option">
           Join Our World 💗
         </button>
 
-        <div
-          id="joinMessage"
-          class="couple-message"
-        ></div>
+        <div id="joinMessage" class="couple-message"></div>
+
       </div>
 
-      <div
-        id="successPanel"
-        class="couple-panel hidden"
-      >
+      <div id="successPanel" class="couple-panel hidden">
+
         <p>
           Your couple world has been created! 🎉
         </p>
 
-        <div
-          id="generatedCode"
-          class="couple-code"
-        ></div>
+        <div id="generatedCode" class="couple-code"></div>
 
         <p>
           Share this code with your partner.
           They can use <b>Join Our World</b>.
         </p>
 
-        <button
-          id="continueBtn"
-          class="couple-option"
-        >
+        <button id="continueBtn" class="couple-option">
           Enter Our World ❤️
         </button>
+
       </div>
 
     </div>
@@ -428,9 +380,9 @@ function createCoupleSetup() {
 
   wrapper.querySelector('#createConfirmBtn')
     .addEventListener('click', async () => {
+
       const name =
-        wrapper.querySelector('#createName')
-          .value.trim()
+        wrapper.querySelector('#createName').value.trim()
 
       const msg =
         wrapper.querySelector('#createMessage')
@@ -454,9 +406,11 @@ function createCoupleSetup() {
 
       if (error) {
         console.error(error)
+
         msg.textContent =
           error.message ||
           'Could not create your world.'
+
         msg.className = 'couple-message error'
         return
       }
@@ -464,6 +418,16 @@ function createCoupleSetup() {
       const result = Array.isArray(data)
         ? data[0]
         : data
+
+      if (!result?.couple_id) {
+        msg.textContent =
+          'Couple was not created correctly.'
+
+        msg.className = 'couple-message error'
+        return
+      }
+
+      window.currentCoupleId = result.couple_id
 
       wrapper.querySelector('#generatedCode')
         .textContent = result.couple_code
@@ -474,9 +438,9 @@ function createCoupleSetup() {
 
   wrapper.querySelector('#joinConfirmBtn')
     .addEventListener('click', async () => {
+
       const name =
-        wrapper.querySelector('#joinName')
-          .value.trim()
+        wrapper.querySelector('#joinName').value.trim()
 
       const code =
         wrapper.querySelector('#joinCode')
@@ -489,6 +453,7 @@ function createCoupleSetup() {
       if (!name || !code) {
         msg.textContent =
           'Please enter your name and Couple Code.'
+
         msg.className = 'couple-message error'
         return
       }
@@ -507,9 +472,11 @@ function createCoupleSetup() {
 
       if (error) {
         console.error(error)
+
         msg.textContent =
           error.message ||
           'Could not join this world.'
+
         msg.className = 'couple-message error'
         return
       }
@@ -521,14 +488,18 @@ function createCoupleSetup() {
       if (!result?.couple_id) {
         msg.textContent =
           'Something went wrong. Please check the Couple Code.'
+
         msg.className = 'couple-message error'
         return
       }
+
+      window.currentCoupleId = result.couple_id
 
       msg.textContent =
         'Joined successfully! Opening your world… 💗'
 
       setTimeout(() => {
+        wrapper.remove()
         location.reload()
       }, 700)
     })
@@ -541,34 +512,67 @@ function createCoupleSetup() {
   return wrapper
 }
 
-async function ensureCoupleConnection() {
-  const profile = await getMyProfile()
+/* -------------------------------------------------
+   FIXED EXISTING COUPLE CHECK
+------------------------------------------------- */
 
-  if (!profile) {
-    console.log(
-      'No profile found yet. Couple setup will be shown.'
+async function ensureCoupleConnection() {
+
+  const {
+    data: { user }
+  } = await supabase.auth.getUser()
+
+  if (!user) return
+
+  const { data, error } =
+    await supabase.rpc('get_my_couple')
+
+  if (error) {
+    console.error(
+      'get_my_couple error:',
+      error
     )
 
     createCoupleSetup()
     return
   }
 
-  if (!profile.couple_id) {
-    createCoupleSetup()
+  const result = Array.isArray(data)
+    ? data[0]
+    : data
+
+  /* Existing couple found */
+  if (result?.couple_id) {
+
+    window.currentCoupleId =
+      result.couple_id
+
+    window.currentProfile = {
+      id: result.profile_id,
+      name: result.profile_name,
+      couple_id: result.couple_id,
+      couple_code: result.couple_code
+    }
+
+    const setup =
+      document.getElementById('coupleSetup')
+
+    if (setup) setup.remove()
+
+    console.log(
+      'Existing couple found:',
+      result.couple_code
+    )
+
     return
   }
 
-  console.log(
-    'Connected to couple:',
-    profile.couple_id
-  )
-
-  window.currentCoupleId = profile.couple_id
-  window.currentProfile = profile
+  /* No couple yet */
+  createCoupleSetup()
 }
 
 /* -------------------------------------------------
-   INITIAL AUTH CHECK
+   START APP
 ------------------------------------------------- */
 
 const {
@@ -583,6 +587,7 @@ if (session) {
 
 supabase.auth.onAuthStateChange(
   async (_event, nextSession) => {
+
     showApp(nextSession)
 
     if (nextSession) {
