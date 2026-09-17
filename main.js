@@ -185,3 +185,461 @@ supabase.auth.onAuthStateChange(
 
 /* Keep Supabase available */
 window.supabaseClient = supabase
+/* =========================================
+   STEP 15 — REAL RELATIONSHIP DATES
+========================================= */
+
+const togetherNumber = document.querySelector('.together b')
+const togetherText = document.querySelector('.together span')
+const settingsButton = document.querySelector('.gear')
+
+let ourSettings = null
+let myProfile = null
+let partnerProfile = null
+
+function formatDate(dateString) {
+  if (!dateString) return ''
+  const d = new Date(dateString + 'T00:00:00')
+  return d.toLocaleDateString('en-IN', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric'
+  })
+}
+
+function daysBetween(startDate) {
+  const start = new Date(startDate + 'T00:00:00')
+  const today = new Date()
+
+  start.setHours(0, 0, 0, 0)
+  today.setHours(0, 0, 0, 0)
+
+  return Math.max(
+    0,
+    Math.floor(
+      (today - start) / (1000 * 60 * 60 * 24)
+    )
+  )
+}
+
+function updateTogetherCounter() {
+  if (!ourSettings?.relationship_start_date) return
+
+  const start =
+    ourSettings.relationship_start_date
+
+  const days = daysBetween(start)
+
+  if (!togetherNumber || !togetherText) return
+
+  const startDate =
+    new Date(start + 'T00:00:00')
+
+  const today = new Date()
+
+  let years =
+    today.getFullYear() -
+    startDate.getFullYear()
+
+  const anniversaryThisYear =
+    new Date(
+      today.getFullYear(),
+      startDate.getMonth(),
+      startDate.getDate()
+    )
+
+  if (today < anniversaryThisYear) {
+    years--
+  }
+
+  if (years >= 1) {
+    togetherNumber.textContent = years
+    togetherText.textContent =
+      years === 1
+        ? 'beautiful year together'
+        : 'beautiful years together'
+  } else {
+    togetherNumber.textContent = days
+    togetherText.textContent =
+      'beautiful days together'
+  }
+}
+
+async function loadOurSettings() {
+  const { data, error } =
+    await supabase.rpc('get_our_settings')
+
+  if (error) {
+    console.error(
+      'Settings loading error:',
+      error
+    )
+    return
+  }
+
+  ourSettings = data?.[0] || null
+
+  updateTogetherCounter()
+}
+
+async function loadMyProfile() {
+  const { data, error } =
+    await supabase.rpc(
+      'get_my_couple_profiles'
+    )
+
+  if (error) {
+    console.error(
+      'Profile loading error:',
+      error
+    )
+    return
+  }
+
+  if (!data || data.length === 0) return
+
+  myProfile = data.find(
+    p => p.id === sessionUserId
+  )
+
+  partnerProfile =
+    data.find(
+      p => p.id !== sessionUserId
+    ) || null
+}
+
+let sessionUserId = null
+
+async function openRelationshipSettings() {
+
+  const { data: { session } } =
+    await supabase.auth.getSession()
+
+  if (!session) return
+
+  sessionUserId = session.user.id
+
+  await loadOurSettings()
+  await loadMyProfile()
+
+  const old = document.getElementById(
+    'relationshipSettings'
+  )
+
+  if (old) old.remove()
+
+  const modal =
+    document.createElement('div')
+
+  modal.id = 'relationshipSettings'
+
+  modal.innerHTML = `
+    <div class="rs-overlay">
+      <div class="rs-card">
+
+        <div class="rs-head">
+          <div>
+            <div class="rs-title">
+              💗 Our Dates
+            </div>
+            <div class="rs-sub">
+              ये dates बाद में भी बदल सकते हो
+            </div>
+          </div>
+
+          <button id="rsClose">×</button>
+        </div>
+
+        <label>
+          💕 Relationship Start Date
+        </label>
+
+        <input
+          id="rsStart"
+          type="date"
+          value="${
+            ourSettings?.relationship_start_date || ''
+          }"
+        >
+
+        <label>
+          ✨ Special Date
+        </label>
+
+        <input
+          id="rsSpecial"
+          type="date"
+          value="${
+            ourSettings?.special_date || ''
+          }"
+        >
+
+        <label>
+          📝 Special Date Name
+        </label>
+
+        <input
+          id="rsSpecialTitle"
+          type="text"
+          placeholder="Our Anniversary"
+          value="${
+            ourSettings?.special_date_title || ''
+          }"
+        >
+
+        <label>
+          🎂 My Birthday
+        </label>
+
+        <input
+          id="rsBirthday"
+          type="date"
+          value="${
+            myProfile?.birthday || ''
+          }"
+        >
+
+        <button
+          id="rsSave"
+          class="rs-save"
+        >
+          Save Our Dates 💗
+        </button>
+
+        <div id="rsStatus"></div>
+
+      </div>
+    </div>
+  `
+
+  document.body.appendChild(modal)
+
+  document.getElementById(
+    'rsClose'
+  ).onclick = () => modal.remove()
+
+  document.getElementById(
+    'rsSave'
+  ).onclick = async () => {
+
+    const start =
+      document.getElementById(
+        'rsStart'
+      ).value
+
+    const special =
+      document.getElementById(
+        'rsSpecial'
+      ).value || null
+
+    const title =
+      document.getElementById(
+        'rsSpecialTitle'
+      ).value.trim()
+
+    const birthday =
+      document.getElementById(
+        'rsBirthday'
+      ).value || null
+
+    if (!start) {
+      document.getElementById(
+        'rsStatus'
+      ).textContent =
+        'Relationship start date डालो 💗'
+
+      return
+    }
+
+    const saveButton =
+      document.getElementById('rsSave')
+
+    saveButton.disabled = true
+    saveButton.textContent =
+      'Saving… 💗'
+
+    const { error } =
+      await supabase.rpc(
+        'save_our_settings',
+        {
+          p_relationship_start_date:
+            start,
+
+          p_special_date:
+            special,
+
+          p_special_date_title:
+            title,
+
+          p_my_birthday:
+            birthday
+        }
+      )
+
+    if (error) {
+
+      document.getElementById(
+        'rsStatus'
+      ).textContent =
+        error.message
+
+      saveButton.disabled = false
+      saveButton.textContent =
+        'Save Our Dates 💗'
+
+      return
+    }
+
+    ourSettings = {
+      ...ourSettings,
+      relationship_start_date:
+        start,
+      special_date:
+        special,
+      special_date_title:
+        title
+    }
+
+    updateTogetherCounter()
+
+    document.getElementById(
+      'rsStatus'
+    ).textContent =
+      'Dates saved successfully 💗'
+
+    saveButton.textContent =
+      'Saved ✓'
+
+    setTimeout(() => {
+      modal.remove()
+    }, 900)
+  }
+}
+
+/* Open settings from the existing ⚙ button */
+if (settingsButton) {
+  settingsButton.onclick =
+    openRelationshipSettings
+}
+
+/* Add settings styles */
+const rsStyle =
+  document.createElement('style')
+
+rsStyle.textContent = `
+#relationshipSettings{
+  position:fixed;
+  inset:0;
+  z-index:10000;
+}
+
+.rs-overlay{
+  position:absolute;
+  inset:0;
+  display:flex;
+  align-items:flex-end;
+  justify-content:center;
+  background:rgba(55,30,48,.28);
+  backdrop-filter:blur(8px);
+}
+
+.rs-card{
+  width:min(620px,100%);
+  max-height:90vh;
+  overflow:auto;
+  background:#fff8fc;
+  border-radius:28px 28px 0 0;
+  padding:22px 18px 30px;
+  box-shadow:0 -18px 60px rgba(70,35,60,.22);
+  animation:rsUp .28s ease-out;
+}
+
+@keyframes rsUp{
+  from{
+    transform:translateY(40px);
+    opacity:0;
+  }
+  to{
+    transform:none;
+    opacity:1;
+  }
+}
+
+.rs-head{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  margin-bottom:18px;
+}
+
+.rs-title{
+  font-size:20px;
+  font-weight:900;
+  color:#482b3f;
+}
+
+.rs-sub{
+  margin-top:4px;
+  color:#927486;
+  font-size:11px;
+}
+
+.rs-head button{
+  border:0;
+  width:36px;
+  height:36px;
+  border-radius:12px;
+  background:#f1e8ee;
+  font-size:22px;
+  color:#67465a;
+}
+
+.rs-card label{
+  display:block;
+  margin:13px 0 6px;
+  color:#67465a;
+  font-size:12px;
+  font-weight:800;
+}
+
+.rs-card input{
+  width:100%;
+  padding:13px;
+  border:1px solid #ead7e3;
+  border-radius:14px;
+  background:#fff;
+  color:#5f4052;
+  font:inherit;
+  outline:none;
+}
+
+.rs-card input:focus{
+  border-color:#ff69a9;
+  box-shadow:0 0 0 3px rgba(255,105,169,.10);
+}
+
+.rs-save{
+  width:100%;
+  margin-top:20px;
+  padding:14px;
+  border:0;
+  border-radius:15px;
+  color:#fff;
+  font-weight:900;
+  font-size:15px;
+  background:linear-gradient(100deg,#ff4c98,#9e82ff);
+}
+
+.rs-save:disabled{
+  opacity:.65;
+}
+
+#rsStatus{
+  text-align:center;
+  margin-top:10px;
+  color:#76566a;
+  font-size:12px;
+}
+`
+
+document.head.appendChild(rsStyle)
