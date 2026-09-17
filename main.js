@@ -13,13 +13,26 @@ const status = document.getElementById('authStatus')
 const loginTab = document.getElementById('loginTab')
 const signupTab = document.getElementById('signupTab')
 const logout = document.getElementById('logoutBtn')
+const gear = document.querySelector('.gear')
+const togetherBox = document.querySelector('.together')
 
 let mode = 'login'
+let counterTimer = null
+let relationshipStartAt = null
+
+// Demo starting moment:
+// 11 June 2024, 12:00 PM local/device time
+const DEMO_START_AT = '2024-06-11T12:00:00'
+
+// =====================================================
+// AUTH
+// =====================================================
 
 document.body.classList.add('auth-loading')
 
 function setMode(next) {
   mode = next
+
   const login = mode === 'login'
 
   loginTab.classList.toggle('active', login)
@@ -51,27 +64,36 @@ form.addEventListener('submit', async (event) => {
   event.preventDefault()
 
   submit.disabled = true
-  message(mode === 'login'
-    ? 'Logging in…'
-    : 'Creating account…'
+
+  message(
+    mode === 'login'
+      ? 'Logging in…'
+      : 'Creating account…'
   )
 
   try {
     if (mode === 'signup') {
-      const { data, error } = await supabase.auth.signUp({
-        email: email.value.trim(),
-        password: password.value
-      })
+
+      const { data, error } =
+        await supabase.auth.signUp({
+          email: email.value.trim(),
+          password: password.value
+        })
 
       if (error) throw error
 
       if (data.session) {
         message('Account created. Opening your world…')
       } else {
-        message('Account created! Please log in. 💗')
+        message(
+          'Account created! Check your email and confirm it, then log in. 💗'
+        )
+
         setMode('login')
       }
+
     } else {
+
       const { error } =
         await supabase.auth.signInWithPassword({
           email: email.value.trim(),
@@ -82,12 +104,15 @@ form.addEventListener('submit', async (event) => {
 
       message('Login successful. Opening your world…')
     }
+
   } catch (error) {
+
     message(
       error.message ||
       'Something went wrong. Please try again.',
       true
     )
+
   } finally {
     submit.disabled = false
   }
@@ -97,549 +122,792 @@ logout.addEventListener('click', async () => {
   await supabase.auth.signOut()
 })
 
-function showApp(session) {
-  const loggedIn = !!session
 
-  gate.style.display = loggedIn ? 'none' : 'grid'
-  logout.style.display = loggedIn ? 'block' : 'none'
+// =====================================================
+// HEADER — SETTINGS + LOGOUT FIX
+// =====================================================
+
+if (gear && logout) {
+
+  const top = document.querySelector('.top')
+
+  const actions =
+    document.createElement('div')
+
+  actions.className = 'top-actions-fixed'
+
+  gear.replaceWith(actions)
+
+  actions.appendChild(gear)
+  actions.appendChild(logout)
+
+  Object.assign(actions.style, {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    gap: '8px',
+    flexShrink: '0'
+  })
+
+  Object.assign(logout.style, {
+    position: 'static',
+    right: 'auto',
+    top: 'auto',
+    zIndex: 'auto',
+    margin: '0'
+  })
+
+  if (top) {
+    top.style.display = 'flex'
+    top.style.alignItems = 'center'
+    top.style.justifyContent = 'space-between'
+    top.style.gap = '10px'
+  }
+}
+
+
+// =====================================================
+// DATE HELPERS
+// =====================================================
+
+function parseStoredStart(value) {
+
+  if (!value) return null
+
+  const date = new Date(value)
+
+  if (Number.isNaN(date.getTime())) {
+    return null
+  }
+
+  return date
+}
+
+function clampMonthDate(
+  date,
+  year,
+  month
+) {
+
+  const day = date.getDate()
+
+  const lastDay =
+    new Date(
+      year,
+      month + 1,
+      0
+    ).getDate()
+
+  return new Date(
+    year,
+    month,
+    Math.min(day, lastDay),
+    date.getHours(),
+    date.getMinutes(),
+    date.getSeconds(),
+    date.getMilliseconds()
+  )
+}
+
+
+// =====================================================
+// EXACT CALENDAR ELAPSED TIME
+// =====================================================
+
+function elapsedCalendar(start, end) {
+
+  if (end < start) {
+
+    return {
+      years: 0,
+      months: 0,
+      days: 0,
+      hours: 0,
+      minutes: 0,
+      seconds: 0
+    }
+  }
+
+  let cursor = new Date(start)
+
+  // YEARS
+  let years =
+    end.getFullYear() -
+    cursor.getFullYear()
+
+  let anniversary =
+    new Date(cursor)
+
+  anniversary.setFullYear(
+    cursor.getFullYear() + years
+  )
+
+  if (anniversary > end) {
+
+    years -= 1
+
+    anniversary =
+      new Date(cursor)
+
+    anniversary.setFullYear(
+      cursor.getFullYear() + years
+    )
+  }
+
+  cursor = anniversary
+
+
+  // MONTHS
+  let months =
+    end.getMonth() -
+    cursor.getMonth()
+
+  if (months < 0) {
+    months += 12
+  }
+
+  let monthPoint =
+    clampMonthDate(
+      cursor,
+      cursor.getFullYear(),
+      cursor.getMonth() + months
+    )
+
+  if (monthPoint > end) {
+
+    months -= 1
+
+    monthPoint =
+      clampMonthDate(
+        cursor,
+        cursor.getFullYear(),
+        cursor.getMonth() + months
+      )
+  }
+
+  cursor = monthPoint
+
+
+  // REMAINING TIME
+  let remaining =
+    Math.max(
+      0,
+      end.getTime() -
+      cursor.getTime()
+    )
+
+  const SECOND = 1000
+  const MINUTE = 60 * SECOND
+  const HOUR = 60 * MINUTE
+  const DAY = 24 * HOUR
+
+  const days =
+    Math.floor(
+      remaining / DAY
+    )
+
+  remaining %= DAY
+
+  const hours =
+    Math.floor(
+      remaining / HOUR
+    )
+
+  remaining %= HOUR
+
+  const minutes =
+    Math.floor(
+      remaining / MINUTE
+    )
+
+  remaining %= MINUTE
+
+  const seconds =
+    Math.floor(
+      remaining / SECOND
+    )
+
+  return {
+    years,
+    months,
+    days,
+    hours,
+    minutes,
+    seconds
+  }
+}
+
+
+// =====================================================
+// LIVE TOGETHER COUNTER
+// =====================================================
+
+function updateTogetherCounter() {
+
+  if (!togetherBox ||
+      !relationshipStartAt) {
+    return
+  }
+
+  const start =
+    parseStoredStart(
+      relationshipStartAt
+    )
+
+  if (!start) return
+
+  const now = new Date()
+
+  const e =
+    elapsedCalendar(
+      start,
+      now
+    )
+
+  const years =
+    `${e.years} ${
+      e.years === 1
+        ? 'Year'
+        : 'Years'
+    }`
+
+  const months =
+    `${e.months} ${
+      e.months === 1
+        ? 'Month'
+        : 'Months'
+    }`
+
+  const days =
+    `${e.days} ${
+      e.days === 1
+        ? 'Day'
+        : 'Days'
+    }`
+
+  const hours =
+    String(e.hours)
+      .padStart(2, '0')
+
+  const minutes =
+    String(e.minutes)
+      .padStart(2, '0')
+
+  const seconds =
+    String(e.seconds)
+      .padStart(2, '0')
+
+
+  togetherBox.innerHTML = `
+    <b>
+      ${years} · ${months} · ${days}
+    </b>
+
+    <span>
+      ${hours}h · ${minutes}m · ${seconds}s
+      &nbsp;•&nbsp; together 💗
+    </span>
+  `
+}
+
+function startTogetherCounter() {
+
+  if (counterTimer) {
+    clearInterval(counterTimer)
+  }
+
+  updateTogetherCounter()
+
+  counterTimer =
+    setInterval(
+      updateTogetherCounter,
+      1000
+    )
+}
+
+
+// =====================================================
+// DATETIME INPUT
+// =====================================================
+
+function localDateTimeValue(date) {
+
+  const pad =
+    n => String(n).padStart(2, '0')
+
+  return `${date.getFullYear()}-${pad(
+    date.getMonth() + 1
+  )}-${pad(
+    date.getDate()
+  )}T${pad(
+    date.getHours()
+  )}:${pad(
+    date.getMinutes()
+  )}`
+}
+
+
+function makeLocalDate(value) {
+
+  if (!value) return null
+
+  const [datePart, timePart = '00:00'] =
+    value.split('T')
+
+  const [year, month, day] =
+    datePart
+      .split('-')
+      .map(Number)
+
+  const [hours, minutes] =
+    timePart
+      .split(':')
+      .map(Number)
+
+  if (
+    ![
+      year,
+      month,
+      day,
+      hours,
+      minutes
+    ].every(Number.isFinite)
+  ) {
+    return null
+  }
+
+  return new Date(
+    year,
+    month - 1,
+    day,
+    hours,
+    minutes,
+    0,
+    0
+  )
+}
+
+
+// =====================================================
+// SETTINGS MODAL
+// =====================================================
+
+function showSettingsModal() {
+
+  const old =
+    document.getElementById(
+      'relationshipSettingsModal'
+    )
+
+  if (old) old.remove()
+
+  const current =
+    parseStoredStart(
+      relationshipStartAt
+    ) ||
+    new Date(DEMO_START_AT)
+
+
+  const modal =
+    document.createElement('div')
+
+  modal.id =
+    'relationshipSettingsModal'
+
+
+  modal.innerHTML = `
+
+    <div class="rs-backdrop"></div>
+
+    <div
+      class="rs-card"
+      role="dialog"
+      aria-modal="true"
+    >
+
+      <button
+        class="rs-close"
+        type="button"
+        aria-label="Close"
+      >
+        ×
+      </button>
+
+      <div class="rs-kicker">
+        OUR LITTLE WORLD 💗
+      </div>
+
+      <h2>
+        Our Starting Moment
+      </h2>
+
+      <p>
+        यहाँ अपनी असली starting date और exact time डाल सकते हो।
+        अभी demo date लगी हुई है।
+      </p>
+
+      <label>
+        We started on
+
+        <input
+          id="relationshipStartInput"
+          type="datetime-local"
+          value="${localDateTimeValue(current)}"
+        >
+      </label>
+
+      <div
+        class="rs-preview"
+        id="rsPreview"
+      ></div>
+
+      <button
+        class="rs-save"
+        id="saveRelationshipStart"
+        type="button"
+      >
+        Save Starting Moment ❤️
+      </button>
+
+      <div
+        class="rs-status"
+        id="rsStatus"
+      ></div>
+
+    </div>
+  `
+
+
+  document.body.appendChild(modal)
+
+
+  const input =
+    modal.querySelector(
+      '#relationshipStartInput'
+    )
+
+  const preview =
+    modal.querySelector(
+      '#rsPreview'
+    )
+
+  const statusEl =
+    modal.querySelector(
+      '#rsStatus'
+    )
+
+
+  function previewCounter() {
+
+    const date =
+      makeLocalDate(
+        input.value
+      )
+
+    if (!date) {
+
+      preview.textContent = ''
+
+      return
+    }
+
+    const e =
+      elapsedCalendar(
+        date,
+        new Date()
+      )
+
+    preview.textContent =
+      `${e.years}y ${e.months}m ${e.days}d · ` +
+      `${String(e.hours).padStart(2, '0')}h ` +
+      `${String(e.minutes).padStart(2, '0')}m ` +
+      `${String(e.seconds).padStart(2, '0')}s`
+  }
+
+
+  input.addEventListener(
+    'input',
+    previewCounter
+  )
+
+  previewCounter()
+
+
+  const close =
+    () => modal.remove()
+
+  modal
+    .querySelector('.rs-close')
+    .addEventListener(
+      'click',
+      close
+    )
+
+  modal
+    .querySelector('.rs-backdrop')
+    .addEventListener(
+      'click',
+      close
+    )
+
+
+  // SAVE
+  modal
+    .querySelector(
+      '#saveRelationshipStart'
+    )
+    .addEventListener(
+      'click',
+      async () => {
+
+        const local =
+          makeLocalDate(
+            input.value
+          )
+
+        if (!local) {
+
+          statusEl.textContent =
+            'Please choose a valid date and time.'
+
+          return
+        }
+
+
+        // Convert device local time
+        // into a real timestamp.
+        const iso =
+          local.toISOString()
+
+
+        const button =
+          modal.querySelector(
+            '#saveRelationshipStart'
+          )
+
+        button.disabled = true
+
+        statusEl.textContent =
+          'Saving…'
+
+
+        try {
+
+          const {
+            error
+          } =
+            await supabase.rpc(
+              'save_our_settings',
+              {
+                p_relationship_start_at:
+                  iso,
+
+                p_special_date:
+                  null,
+
+                p_special_date_title:
+                  null
+              }
+            )
+
+
+          if (error) {
+            throw error
+          }
+
+
+          relationshipStartAt =
+            iso
+
+          localStorage.setItem(
+            'us_relationship_start_at',
+            iso
+          )
+
+
+          startTogetherCounter()
+
+
+          statusEl.textContent =
+            'Saved successfully! 💗'
+
+
+          setTimeout(
+            close,
+            600
+          )
+
+        } catch (error) {
+
+          // Local fallback
+          localStorage.setItem(
+            'us_relationship_start_at',
+            iso
+          )
+
+          relationshipStartAt =
+            iso
+
+          startTogetherCounter()
+
+
+          statusEl.textContent =
+            'Saved on this device. 💗'
+        }
+
+
+        button.disabled = false
+      }
+    )
+}
+
+
+// =====================================================
+// LOAD RELATIONSHIP START
+// =====================================================
+
+async function loadRelationshipStart() {
+
+  try {
+
+    const {
+      data,
+      error
+    } =
+      await supabase.rpc(
+        'get_our_settings'
+      )
+
+
+    if (
+      !error &&
+      data
+    ) {
+
+      const row =
+        Array.isArray(data)
+          ? data[0]
+          : data
+
+
+      if (
+        row &&
+        row.relationship_start_at
+      ) {
+
+        relationshipStartAt =
+          row.relationship_start_at
+
+        localStorage.setItem(
+          'us_relationship_start_at',
+          row.relationship_start_at
+        )
+
+        startTogetherCounter()
+
+        return
+      }
+    }
+
+  } catch (_) {
+    // Use fallback below.
+  }
+
+
+  const local =
+    localStorage.getItem(
+      'us_relationship_start_at'
+    )
+
+
+  relationshipStartAt =
+    local ||
+    DEMO_START_AT
+
+
+  startTogetherCounter()
+}
+
+
+// =====================================================
+// SETTINGS BUTTON
+// =====================================================
+
+if (gear) {
+
+  gear.removeAttribute('onclick')
+
+  gear.addEventListener(
+    'click',
+    showSettingsModal
+  )
+}
+
+
+// =====================================================
+// SHOW / HIDE APP
+// =====================================================
+
+function showApp(session) {
+
+  const loggedIn =
+    !!session
+
+  gate.style.display =
+    loggedIn
+      ? 'none'
+      : 'grid'
+
+  logout.style.display =
+    loggedIn
+      ? 'block'
+      : 'none'
 
   document.body.classList.toggle(
     'auth-loading',
     !loggedIn
   )
-}
 
-/* REAL COUPLE PROFILE DATA */
-async function loadCoupleProfiles() {
-  const { data, error } =
-    await supabase.rpc('get_my_couple_profiles')
 
-  if (error) {
-    console.error('Profile loading error:', error)
-    return
-  }
+  if (loggedIn) {
 
-  if (!data || data.length === 0) {
-    console.log('No couple profile found yet.')
-    return
-  }
+    loadRelationshipStart()
 
-  console.log('Real couple profiles:', data)
+  } else {
 
-  const me = data[0]
-  const partner = data[1]
+    if (counterTimer) {
 
-  /* Home heading */
-  const homeTitle = document.querySelector('.hero h1')
+      clearInterval(
+        counterTimer
+      )
 
-  if (homeTitle) {
-    if (me && partner) {
-      homeTitle.textContent =
-        `${me.name || 'You'} & ${partner.name || 'Partner'}`
-    } else if (me) {
-      homeTitle.textContent =
-        me.name || 'Your World'
-    }
-  }
-
-  /* Home avatars */
-  const avatars =
-    document.querySelectorAll('.person')
-
-  if (me && me.photo_url && avatars[0]) {
-    const img = avatars[0].querySelector('img')
-    if (img) {
-      img.src = me.photo_url
-    }
-  }
-
-  if (partner && partner.photo_url && avatars[1]) {
-    const img = avatars[1].querySelector('img')
-    if (img) {
-      img.src = partner.photo_url
+      counterTimer = null
     }
   }
 }
 
-async function initializeApp(session) {
-  showApp(session)
 
-  if (session) {
-    await loadCoupleProfiles()
-  }
-}
+// =====================================================
+// INITIAL SESSION
+// =====================================================
 
-/* Restore login session */
 const {
-  data: { session }
-} = await supabase.auth.getSession()
+  data: {
+    session
+  }
+} =
+  await supabase.auth.getSession()
 
-await initializeApp(session)
 
-/* Watch login/logout */
+showApp(session)
+
+
 supabase.auth.onAuthStateChange(
-  async (_event, nextSession) => {
-    await initializeApp(nextSession)
+  (_event, nextSession) => {
+    showApp(nextSession)
   }
 )
 
-/* Keep Supabase available */
-window.supabaseClient = supabase
-/* =========================================
-   STEP 15 — REAL RELATIONSHIP DATES
-========================================= */
 
-const togetherNumber = document.querySelector('.together b')
-const togetherText = document.querySelector('.together span')
-const settingsButton = document.querySelector('.gear')
-
-let ourSettings = null
-let myProfile = null
-let partnerProfile = null
-
-function formatDate(dateString) {
-  if (!dateString) return ''
-  const d = new Date(dateString + 'T00:00:00')
-  return d.toLocaleDateString('en-IN', {
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric'
-  })
-}
-
-function daysBetween(startDate) {
-  const start = new Date(startDate + 'T00:00:00')
-  const today = new Date()
-
-  start.setHours(0, 0, 0, 0)
-  today.setHours(0, 0, 0, 0)
-
-  return Math.max(
-    0,
-    Math.floor(
-      (today - start) / (1000 * 60 * 60 * 24)
-    )
-  )
-}
-
-function updateTogetherCounter() {
-  if (!ourSettings?.relationship_start_date) return
-
-  const start =
-    ourSettings.relationship_start_date
-
-  const days = daysBetween(start)
-
-  if (!togetherNumber || !togetherText) return
-
-  const startDate =
-    new Date(start + 'T00:00:00')
-
-  const today = new Date()
-
-  let years =
-    today.getFullYear() -
-    startDate.getFullYear()
-
-  const anniversaryThisYear =
-    new Date(
-      today.getFullYear(),
-      startDate.getMonth(),
-      startDate.getDate()
-    )
-
-  if (today < anniversaryThisYear) {
-    years--
-  }
-
-  if (years >= 1) {
-    togetherNumber.textContent = years
-    togetherText.textContent =
-      years === 1
-        ? 'beautiful year together'
-        : 'beautiful years together'
-  } else {
-    togetherNumber.textContent = days
-    togetherText.textContent =
-      'beautiful days together'
-  }
-}
-
-async function loadOurSettings() {
-  const { data, error } =
-    await supabase.rpc('get_our_settings')
-
-  if (error) {
-    console.error(
-      'Settings loading error:',
-      error
-    )
-    return
-  }
-
-  ourSettings = data?.[0] || null
-
-  updateTogetherCounter()
-}
-
-async function loadMyProfile() {
-  const { data, error } =
-    await supabase.rpc(
-      'get_my_couple_profiles'
-    )
-
-  if (error) {
-    console.error(
-      'Profile loading error:',
-      error
-    )
-    return
-  }
-
-  if (!data || data.length === 0) return
-
-  myProfile = data.find(
-    p => p.id === sessionUserId
-  )
-
-  partnerProfile =
-    data.find(
-      p => p.id !== sessionUserId
-    ) || null
-}
-
-let sessionUserId = null
-
-async function openRelationshipSettings() {
-
-  const { data: { session } } =
-    await supabase.auth.getSession()
-
-  if (!session) return
-
-  sessionUserId = session.user.id
-
-  await loadOurSettings()
-  await loadMyProfile()
-
-  const old = document.getElementById(
-    'relationshipSettings'
-  )
-
-  if (old) old.remove()
-
-  const modal =
-    document.createElement('div')
-
-  modal.id = 'relationshipSettings'
-
-  modal.innerHTML = `
-    <div class="rs-overlay">
-      <div class="rs-card">
-
-        <div class="rs-head">
-          <div>
-            <div class="rs-title">
-              💗 Our Dates
-            </div>
-            <div class="rs-sub">
-              ये dates बाद में भी बदल सकते हो
-            </div>
-          </div>
-
-          <button id="rsClose">×</button>
-        </div>
-
-        <label>
-          💕 Relationship Start Date
-        </label>
-
-        <input
-          id="rsStart"
-          type="date"
-          value="${
-            ourSettings?.relationship_start_date || ''
-          }"
-        >
-
-        <label>
-          ✨ Special Date
-        </label>
-
-        <input
-          id="rsSpecial"
-          type="date"
-          value="${
-            ourSettings?.special_date || ''
-          }"
-        >
-
-        <label>
-          📝 Special Date Name
-        </label>
-
-        <input
-          id="rsSpecialTitle"
-          type="text"
-          placeholder="Our Anniversary"
-          value="${
-            ourSettings?.special_date_title || ''
-          }"
-        >
-
-        <label>
-          🎂 My Birthday
-        </label>
-
-        <input
-          id="rsBirthday"
-          type="date"
-          value="${
-            myProfile?.birthday || ''
-          }"
-        >
-
-        <button
-          id="rsSave"
-          class="rs-save"
-        >
-          Save Our Dates 💗
-        </button>
-
-        <div id="rsStatus"></div>
-
-      </div>
-    </div>
-  `
-
-  document.body.appendChild(modal)
-
-  document.getElementById(
-    'rsClose'
-  ).onclick = () => modal.remove()
-
-  document.getElementById(
-    'rsSave'
-  ).onclick = async () => {
-
-    const start =
-      document.getElementById(
-        'rsStart'
-      ).value
-
-    const special =
-      document.getElementById(
-        'rsSpecial'
-      ).value || null
-
-    const title =
-      document.getElementById(
-        'rsSpecialTitle'
-      ).value.trim()
-
-    const birthday =
-      document.getElementById(
-        'rsBirthday'
-      ).value || null
-
-    if (!start) {
-      document.getElementById(
-        'rsStatus'
-      ).textContent =
-        'Relationship start date डालो 💗'
-
-      return
-    }
-
-    const saveButton =
-      document.getElementById('rsSave')
-
-    saveButton.disabled = true
-    saveButton.textContent =
-      'Saving… 💗'
-
-    const { error } =
-      await supabase.rpc(
-        'save_our_settings',
-        {
-          p_relationship_start_date:
-            start,
-
-          p_special_date:
-            special,
-
-          p_special_date_title:
-            title,
-
-          p_my_birthday:
-            birthday
-        }
-      )
-
-    if (error) {
-
-      document.getElementById(
-        'rsStatus'
-      ).textContent =
-        error.message
-
-      saveButton.disabled = false
-      saveButton.textContent =
-        'Save Our Dates 💗'
-
-      return
-    }
-
-    ourSettings = {
-      ...ourSettings,
-      relationship_start_date:
-        start,
-      special_date:
-        special,
-      special_date_title:
-        title
-    }
-
-    updateTogetherCounter()
-
-    document.getElementById(
-      'rsStatus'
-    ).textContent =
-      'Dates saved successfully 💗'
-
-    saveButton.textContent =
-      'Saved ✓'
-
-    setTimeout(() => {
-      modal.remove()
-    }, 900)
-  }
-}
-
-/* Open settings from the existing ⚙ button */
-if (settingsButton) {
-  settingsButton.onclick =
-    openRelationshipSettings
-}
-
-/* Add settings styles */
-const rsStyle =
-  document.createElement('style')
-
-rsStyle.textContent = `
-#relationshipSettings{
-  position:fixed;
-  inset:0;
-  z-index:10000;
-}
-
-.rs-overlay{
-  position:absolute;
-  inset:0;
-  display:flex;
-  align-items:flex-end;
-  justify-content:center;
-  background:rgba(55,30,48,.28);
-  backdrop-filter:blur(8px);
-}
-
-.rs-card{
-  width:min(620px,100%);
-  max-height:90vh;
-  overflow:auto;
-  background:#fff8fc;
-  border-radius:28px 28px 0 0;
-  padding:22px 18px 30px;
-  box-shadow:0 -18px 60px rgba(70,35,60,.22);
-  animation:rsUp .28s ease-out;
-}
-
-@keyframes rsUp{
-  from{
-    transform:translateY(40px);
-    opacity:0;
-  }
-  to{
-    transform:none;
-    opacity:1;
-  }
-}
-
-.rs-head{
-  display:flex;
-  justify-content:space-between;
-  align-items:center;
-  margin-bottom:18px;
-}
-
-.rs-title{
-  font-size:20px;
-  font-weight:900;
-  color:#482b3f;
-}
-
-.rs-sub{
-  margin-top:4px;
-  color:#927486;
-  font-size:11px;
-}
-
-.rs-head button{
-  border:0;
-  width:36px;
-  height:36px;
-  border-radius:12px;
-  background:#f1e8ee;
-  font-size:22px;
-  color:#67465a;
-}
-
-.rs-card label{
-  display:block;
-  margin:13px 0 6px;
-  color:#67465a;
-  font-size:12px;
-  font-weight:800;
-}
-
-.rs-card input{
-  width:100%;
-  padding:13px;
-  border:1px solid #ead7e3;
-  border-radius:14px;
-  background:#fff;
-  color:#5f4052;
-  font:inherit;
-  outline:none;
-}
-
-.rs-card input:focus{
-  border-color:#ff69a9;
-  box-shadow:0 0 0 3px rgba(255,105,169,.10);
-}
-
-.rs-save{
-  width:100%;
-  margin-top:20px;
-  padding:14px;
-  border:0;
-  border-radius:15px;
-  color:#fff;
-  font-weight:900;
-  font-size:15px;
-  background:linear-gradient(100deg,#ff4c98,#9e82ff);
-}
-
-.rs-save:disabled{
-  opacity:.65;
-}
-
-#rsStatus{
-  text-align:center;
-  margin-top:10px;
-  color:#76566a;
-  font-size:12px;
-}
-`
-
-document.head.appendChild(rsStyle)
+window.supabaseClient =
+  supabase
