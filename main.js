@@ -13,22 +13,21 @@ const status = document.getElementById('authStatus')
 const loginTab = document.getElementById('loginTab')
 const signupTab = document.getElementById('signupTab')
 const logout = document.getElementById('logoutBtn')
-const gear = document.querySelector('.gear')
+const settingsBtn = document.getElementById('settingsBtn')
 const togetherBox = document.querySelector('.together')
 
 let mode = 'login'
-let counterTimer = null
 let relationshipStartAt = null
+let counterTimer = null
 
-// Demo starting moment:
-// 11 June 2024, 12:00 PM local/device time
-const DEMO_START_AT = '2024-06-11T12:00:00'
+const DEMO_START_AT = '2024-06-11T12:00:00+05:30'
+
+document.body.classList.add('auth-loading')
+
 
 // =====================================================
 // AUTH
 // =====================================================
-
-document.body.classList.add('auth-loading')
 
 function setMode(next) {
   mode = next
@@ -72,6 +71,7 @@ form.addEventListener('submit', async (event) => {
   )
 
   try {
+
     if (mode === 'signup') {
 
       const { data, error } =
@@ -88,7 +88,6 @@ form.addEventListener('submit', async (event) => {
         message(
           'Account created! Check your email and confirm it, then log in. 💗'
         )
-
         setMode('login')
       }
 
@@ -114,7 +113,9 @@ form.addEventListener('submit', async (event) => {
     )
 
   } finally {
+
     submit.disabled = false
+
   }
 })
 
@@ -124,53 +125,81 @@ logout.addEventListener('click', async () => {
 
 
 // =====================================================
-// HEADER — SETTINGS + LOGOUT FIX
+// REAL NAVIGATION
 // =====================================================
 
-if (gear && logout) {
+window.showScreen = function(screenName) {
 
-  const top = document.querySelector('.top')
+  const home =
+    document.querySelector('.page')
 
-  const actions =
-    document.createElement('div')
+  const screens =
+    document.querySelectorAll('.app-screen')
 
-  actions.className = 'top-actions-fixed'
+  const navButtons =
+    document.querySelectorAll('#mainNav button')
 
-  gear.replaceWith(actions)
-
-  actions.appendChild(gear)
-  actions.appendChild(logout)
-
-  Object.assign(actions.style, {
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'flex-end',
-    gap: '8px',
-    flexShrink: '0'
+  // Hide all app screens
+  screens.forEach(screen => {
+    screen.classList.remove('active')
   })
 
-  Object.assign(logout.style, {
-    position: 'static',
-    right: 'auto',
-    top: 'auto',
-    zIndex: 'auto',
-    margin: '0'
-  })
+  // Home
+  if (screenName === 'home') {
 
-  if (top) {
-    top.style.display = 'flex'
-    top.style.alignItems = 'center'
-    top.style.justifyContent = 'space-between'
-    top.style.gap = '10px'
+    home.style.display = ''
+
+  } else {
+
+    home.style.display = 'none'
+
+    const target =
+      document.getElementById(
+        `screen-${screenName}`
+      )
+
+    if (target) {
+      target.classList.add('active')
+    }
   }
+
+  // Active navigation button
+  navButtons.forEach(button => {
+    button.classList.toggle(
+      'active',
+      button.dataset.screen === screenName
+    )
+  })
+
+  window.scrollTo({
+    top: 0,
+    behavior: 'smooth'
+  })
 }
 
 
 // =====================================================
-// DATE HELPERS
+// SETTINGS BUTTON
 // =====================================================
 
-function parseStoredStart(value) {
+if (settingsBtn) {
+
+  settingsBtn.addEventListener('click', (event) => {
+
+    event.preventDefault()
+    event.stopPropagation()
+
+    showScreen('settings')
+
+  })
+}
+
+
+// =====================================================
+// EXACT LIVE TOGETHER COUNTER
+// =====================================================
+
+function parseDate(value) {
 
   if (!value) return null
 
@@ -183,38 +212,37 @@ function parseStoredStart(value) {
   return date
 }
 
-function clampMonthDate(
-  date,
-  year,
-  month
-) {
+function monthPoint(date, monthsToAdd) {
 
-  const day = date.getDate()
+  const result = new Date(date)
+
+  const originalDay =
+    result.getDate()
+
+  result.setDate(1)
+
+  result.setMonth(
+    result.getMonth() + monthsToAdd
+  )
 
   const lastDay =
     new Date(
-      year,
-      month + 1,
+      result.getFullYear(),
+      result.getMonth() + 1,
       0
     ).getDate()
 
-  return new Date(
-    year,
-    month,
-    Math.min(day, lastDay),
-    date.getHours(),
-    date.getMinutes(),
-    date.getSeconds(),
-    date.getMilliseconds()
+  result.setDate(
+    Math.min(
+      originalDay,
+      lastDay
+    )
   )
+
+  return result
 }
 
-
-// =====================================================
-// EXACT CALENDAR ELAPSED TIME
-// =====================================================
-
-function elapsedCalendar(start, end) {
+function calculateElapsed(start, end) {
 
   if (end < start) {
 
@@ -228,33 +256,34 @@ function elapsedCalendar(start, end) {
     }
   }
 
-  let cursor = new Date(start)
+  let cursor =
+    new Date(start)
 
   // YEARS
   let years =
     end.getFullYear() -
     cursor.getFullYear()
 
-  let anniversary =
+  let yearPoint =
     new Date(cursor)
 
-  anniversary.setFullYear(
+  yearPoint.setFullYear(
     cursor.getFullYear() + years
   )
 
-  if (anniversary > end) {
+  if (yearPoint > end) {
 
-    years -= 1
+    years--
 
-    anniversary =
+    yearPoint =
       new Date(cursor)
 
-    anniversary.setFullYear(
+    yearPoint.setFullYear(
       cursor.getFullYear() + years
     )
   }
 
-  cursor = anniversary
+  cursor = yearPoint
 
 
   // MONTHS
@@ -266,35 +295,30 @@ function elapsedCalendar(start, end) {
     months += 12
   }
 
-  let monthPoint =
-    clampMonthDate(
+  let mPoint =
+    monthPoint(
       cursor,
-      cursor.getFullYear(),
-      cursor.getMonth() + months
+      months
     )
 
-  if (monthPoint > end) {
+  if (mPoint > end) {
 
-    months -= 1
+    months--
 
-    monthPoint =
-      clampMonthDate(
+    mPoint =
+      monthPoint(
         cursor,
-        cursor.getFullYear(),
-        cursor.getMonth() + months
+        months
       )
   }
 
-  cursor = monthPoint
+  cursor = mPoint
 
 
-  // REMAINING TIME
+  // REMAINING DAYS / TIME
   let remaining =
-    Math.max(
-      0,
-      end.getTime() -
-      cursor.getTime()
-    )
+    end.getTime() -
+    cursor.getTime()
 
   const SECOND = 1000
   const MINUTE = 60 * SECOND
@@ -337,74 +361,39 @@ function elapsedCalendar(start, end) {
   }
 }
 
-
-// =====================================================
-// LIVE TOGETHER COUNTER
-// =====================================================
-
 function updateTogetherCounter() {
 
-  if (!togetherBox ||
-      !relationshipStartAt) {
-    return
-  }
+  if (!togetherBox) return
 
   const start =
-    parseStoredStart(
-      relationshipStartAt
+    parseDate(
+      relationshipStartAt ||
+      DEMO_START_AT
     )
 
   if (!start) return
 
-  const now = new Date()
-
-  const e =
-    elapsedCalendar(
+  const elapsed =
+    calculateElapsed(
       start,
-      now
+      new Date()
     )
 
-  const years =
-    `${e.years} ${
-      e.years === 1
-        ? 'Year'
-        : 'Years'
-    }`
-
-  const months =
-    `${e.months} ${
-      e.months === 1
-        ? 'Month'
-        : 'Months'
-    }`
-
-  const days =
-    `${e.days} ${
-      e.days === 1
-        ? 'Day'
-        : 'Days'
-    }`
-
-  const hours =
-    String(e.hours)
-      .padStart(2, '0')
-
-  const minutes =
-    String(e.minutes)
-      .padStart(2, '0')
-
-  const seconds =
-    String(e.seconds)
-      .padStart(2, '0')
-
+  const pad =
+    number =>
+      String(number).padStart(2, '0')
 
   togetherBox.innerHTML = `
     <b>
-      ${years} · ${months} · ${days}
+      ${elapsed.years} Years ·
+      ${elapsed.months} Months ·
+      ${elapsed.days} Days
     </b>
 
     <span>
-      ${hours}h · ${minutes}m · ${seconds}s
+      ${pad(elapsed.hours)}h ·
+      ${pad(elapsed.minutes)}m ·
+      ${pad(elapsed.seconds)}s
       &nbsp;•&nbsp; together 💗
     </span>
   `
@@ -427,343 +416,7 @@ function startTogetherCounter() {
 
 
 // =====================================================
-// DATETIME INPUT
-// =====================================================
-
-function localDateTimeValue(date) {
-
-  const pad =
-    n => String(n).padStart(2, '0')
-
-  return `${date.getFullYear()}-${pad(
-    date.getMonth() + 1
-  )}-${pad(
-    date.getDate()
-  )}T${pad(
-    date.getHours()
-  )}:${pad(
-    date.getMinutes()
-  )}`
-}
-
-
-function makeLocalDate(value) {
-
-  if (!value) return null
-
-  const [datePart, timePart = '00:00'] =
-    value.split('T')
-
-  const [year, month, day] =
-    datePart
-      .split('-')
-      .map(Number)
-
-  const [hours, minutes] =
-    timePart
-      .split(':')
-      .map(Number)
-
-  if (
-    ![
-      year,
-      month,
-      day,
-      hours,
-      minutes
-    ].every(Number.isFinite)
-  ) {
-    return null
-  }
-
-  return new Date(
-    year,
-    month - 1,
-    day,
-    hours,
-    minutes,
-    0,
-    0
-  )
-}
-
-
-// =====================================================
-// SETTINGS MODAL
-// =====================================================
-
-function showSettingsModal() {
-
-  const old =
-    document.getElementById(
-      'relationshipSettingsModal'
-    )
-
-  if (old) old.remove()
-
-  const current =
-    parseStoredStart(
-      relationshipStartAt
-    ) ||
-    new Date(DEMO_START_AT)
-
-
-  const modal =
-    document.createElement('div')
-
-  modal.id =
-    'relationshipSettingsModal'
-
-
-  modal.innerHTML = `
-
-    <div class="rs-backdrop"></div>
-
-    <div
-      class="rs-card"
-      role="dialog"
-      aria-modal="true"
-    >
-
-      <button
-        class="rs-close"
-        type="button"
-        aria-label="Close"
-      >
-        ×
-      </button>
-
-      <div class="rs-kicker">
-        OUR LITTLE WORLD 💗
-      </div>
-
-      <h2>
-        Our Starting Moment
-      </h2>
-
-      <p>
-        यहाँ अपनी असली starting date और exact time डाल सकते हो।
-        अभी demo date लगी हुई है।
-      </p>
-
-      <label>
-        We started on
-
-        <input
-          id="relationshipStartInput"
-          type="datetime-local"
-          value="${localDateTimeValue(current)}"
-        >
-      </label>
-
-      <div
-        class="rs-preview"
-        id="rsPreview"
-      ></div>
-
-      <button
-        class="rs-save"
-        id="saveRelationshipStart"
-        type="button"
-      >
-        Save Starting Moment ❤️
-      </button>
-
-      <div
-        class="rs-status"
-        id="rsStatus"
-      ></div>
-
-    </div>
-  `
-
-
-  document.body.appendChild(modal)
-
-
-  const input =
-    modal.querySelector(
-      '#relationshipStartInput'
-    )
-
-  const preview =
-    modal.querySelector(
-      '#rsPreview'
-    )
-
-  const statusEl =
-    modal.querySelector(
-      '#rsStatus'
-    )
-
-
-  function previewCounter() {
-
-    const date =
-      makeLocalDate(
-        input.value
-      )
-
-    if (!date) {
-
-      preview.textContent = ''
-
-      return
-    }
-
-    const e =
-      elapsedCalendar(
-        date,
-        new Date()
-      )
-
-    preview.textContent =
-      `${e.years}y ${e.months}m ${e.days}d · ` +
-      `${String(e.hours).padStart(2, '0')}h ` +
-      `${String(e.minutes).padStart(2, '0')}m ` +
-      `${String(e.seconds).padStart(2, '0')}s`
-  }
-
-
-  input.addEventListener(
-    'input',
-    previewCounter
-  )
-
-  previewCounter()
-
-
-  const close =
-    () => modal.remove()
-
-  modal
-    .querySelector('.rs-close')
-    .addEventListener(
-      'click',
-      close
-    )
-
-  modal
-    .querySelector('.rs-backdrop')
-    .addEventListener(
-      'click',
-      close
-    )
-
-
-  // SAVE
-  modal
-    .querySelector(
-      '#saveRelationshipStart'
-    )
-    .addEventListener(
-      'click',
-      async () => {
-
-        const local =
-          makeLocalDate(
-            input.value
-          )
-
-        if (!local) {
-
-          statusEl.textContent =
-            'Please choose a valid date and time.'
-
-          return
-        }
-
-
-        // Convert device local time
-        // into a real timestamp.
-        const iso =
-          local.toISOString()
-
-
-        const button =
-          modal.querySelector(
-            '#saveRelationshipStart'
-          )
-
-        button.disabled = true
-
-        statusEl.textContent =
-          'Saving…'
-
-
-        try {
-
-          const {
-            error
-          } =
-            await supabase.rpc(
-              'save_our_settings',
-              {
-                p_relationship_start_at:
-                  iso,
-
-                p_special_date:
-                  null,
-
-                p_special_date_title:
-                  null
-              }
-            )
-
-
-          if (error) {
-            throw error
-          }
-
-
-          relationshipStartAt =
-            iso
-
-          localStorage.setItem(
-            'us_relationship_start_at',
-            iso
-          )
-
-
-          startTogetherCounter()
-
-
-          statusEl.textContent =
-            'Saved successfully! 💗'
-
-
-          setTimeout(
-            close,
-            600
-          )
-
-        } catch (error) {
-
-          // Local fallback
-          localStorage.setItem(
-            'us_relationship_start_at',
-            iso
-          )
-
-          relationshipStartAt =
-            iso
-
-          startTogetherCounter()
-
-
-          statusEl.textContent =
-            'Saved on this device. 💗'
-        }
-
-
-        button.disabled = false
-      }
-    )
-}
-
-
-// =====================================================
-// LOAD RELATIONSHIP START
+// LOAD RELATIONSHIP DATE FROM SUPABASE
 // =====================================================
 
 async function loadRelationshipStart() {
@@ -778,17 +431,12 @@ async function loadRelationshipStart() {
         'get_our_settings'
       )
 
-
-    if (
-      !error &&
-      data
-    ) {
+    if (!error && data) {
 
       const row =
         Array.isArray(data)
           ? data[0]
           : data
-
 
       if (
         row &&
@@ -798,10 +446,30 @@ async function loadRelationshipStart() {
         relationshipStartAt =
           row.relationship_start_at
 
-        localStorage.setItem(
-          'us_relationship_start_at',
-          row.relationship_start_at
-        )
+        const display =
+          document.getElementById(
+            'relationshipDateDisplay'
+          )
+
+        if (display) {
+
+          const date =
+            new Date(
+              row.relationship_start_at
+            )
+
+          display.textContent =
+            date.toLocaleString(
+              'en-IN',
+              {
+                day: 'numeric',
+                month: 'long',
+                year: 'numeric',
+                hour: 'numeric',
+                minute: '2-digit'
+              }
+            )
+        }
 
         startTogetherCounter()
 
@@ -809,43 +477,27 @@ async function loadRelationshipStart() {
       }
     }
 
-  } catch (_) {
-    // Use fallback below.
+  } catch (error) {
+
+    console.log(
+      'Relationship settings not loaded yet:',
+      error
+    )
   }
 
-
-  const local =
+  // Demo fallback
+  relationshipStartAt =
     localStorage.getItem(
       'us_relationship_start_at'
-    )
-
-
-  relationshipStartAt =
-    local ||
+    ) ||
     DEMO_START_AT
-
 
   startTogetherCounter()
 }
 
 
 // =====================================================
-// SETTINGS BUTTON
-// =====================================================
-
-if (gear) {
-
-  gear.removeAttribute('onclick')
-
-  gear.addEventListener(
-    'click',
-    showSettingsModal
-  )
-}
-
-
-// =====================================================
-// SHOW / HIDE APP
+// APP SHOW / HIDE
 // =====================================================
 
 function showApp(session) {
@@ -868,8 +520,9 @@ function showApp(session) {
     !loggedIn
   )
 
-
   if (loggedIn) {
+
+    showScreen('home')
 
     loadRelationshipStart()
 
@@ -888,7 +541,7 @@ function showApp(session) {
 
 
 // =====================================================
-// INITIAL SESSION
+// START
 // =====================================================
 
 const {
@@ -898,9 +551,7 @@ const {
 } =
   await supabase.auth.getSession()
 
-
 showApp(session)
-
 
 supabase.auth.onAuthStateChange(
   (_event, nextSession) => {
@@ -908,363 +559,5 @@ supabase.auth.onAuthStateChange(
   }
 )
 
-
 window.supabaseClient =
   supabase
-// ==========================================
-// FORCE SETTINGS BUTTON CLICK FIX
-// ==========================================
-
-setTimeout(() => {
-  const settingsBtn = document.querySelector('.gear')
-
-  if (!settingsBtn) return
-
-  settingsBtn.style.position = 'relative'
-  settingsBtn.style.zIndex = '9999'
-  settingsBtn.style.pointerEvents = 'auto'
-  settingsBtn.style.cursor = 'pointer'
-
-  settingsBtn.onclick = (event) => {
-    event.preventDefault()
-    event.stopPropagation()
-
-    if (typeof showSettingsModal === 'function') {
-      showSettingsModal()
-    }
-  }
-}, 300)
-// ==========================================
-// SETTINGS POPUP VISIBILITY FIX
-// ==========================================
-
-(function fixSettingsPopup() {
-
-  // Add popup CSS
-  if (!document.getElementById('settingsPopupCSS')) {
-
-    const style = document.createElement('style')
-    style.id = 'settingsPopupCSS'
-
-    style.textContent = `
-      #relationshipSettingsModal {
-        position: fixed !important;
-        inset: 0 !important;
-        width: 100vw !important;
-        height: 100vh !important;
-        z-index: 999999 !important;
-        display: flex !important;
-        align-items: center !important;
-        justify-content: center !important;
-        padding: 20px !important;
-        box-sizing: border-box !important;
-      }
-
-      #relationshipSettingsModal .rs-backdrop {
-        position: absolute !important;
-        inset: 0 !important;
-        background: rgba(40, 20, 40, 0.35) !important;
-        backdrop-filter: blur(8px) !important;
-        -webkit-backdrop-filter: blur(8px) !important;
-      }
-
-      #relationshipSettingsModal .rs-card {
-        position: relative !important;
-        z-index: 2 !important;
-        width: min(500px, 100%) !important;
-        max-height: 90vh !important;
-        overflow-y: auto !important;
-        box-sizing: border-box !important;
-        padding: 28px 22px !important;
-        border-radius: 28px !important;
-        background: rgba(255,255,255,0.94) !important;
-        border: 1px solid rgba(255,255,255,0.9) !important;
-        box-shadow: 0 25px 80px rgba(70,30,70,0.25) !important;
-        color: #4d3048 !important;
-      }
-
-      #relationshipSettingsModal h2 {
-        margin: 6px 40px 8px 0 !important;
-        font-size: 25px !important;
-      }
-
-      #relationshipSettingsModal p {
-        line-height: 1.6 !important;
-        color: #765b70 !important;
-      }
-
-      #relationshipSettingsModal label {
-        display: block !important;
-        margin-top: 20px !important;
-        font-weight: 800 !important;
-      }
-
-      #relationshipSettingsModal input {
-        display: block !important;
-        width: 100% !important;
-        box-sizing: border-box !important;
-        margin-top: 8px !important;
-        padding: 14px !important;
-        border-radius: 14px !important;
-        border: 1px solid #ead6e5 !important;
-        background: #fff !important;
-        font-size: 16px !important;
-        color: #4d3048 !important;
-      }
-
-      #relationshipSettingsModal .rs-close {
-        position: absolute !important;
-        top: 14px !important;
-        right: 14px !important;
-        width: 40px !important;
-        height: 40px !important;
-        border: 0 !important;
-        border-radius: 50% !important;
-        background: #f8e8f3 !important;
-        color: #633d59 !important;
-        font-size: 26px !important;
-        cursor: pointer !important;
-      }
-
-      #relationshipSettingsModal .rs-kicker {
-        font-size: 12px !important;
-        font-weight: 900 !important;
-        letter-spacing: 1.5px !important;
-        color: #d94d9b !important;
-      }
-
-      #relationshipSettingsModal .rs-preview {
-        margin-top: 16px !important;
-        padding: 13px !important;
-        border-radius: 15px !important;
-        background: linear-gradient(
-          135deg,
-          #fff0f8,
-          #f0ebff
-        ) !important;
-        text-align: center !important;
-        font-weight: 800 !important;
-        color: #bd4d91 !important;
-      }
-
-      #relationshipSettingsModal .rs-save {
-        width: 100% !important;
-        margin-top: 18px !important;
-        padding: 15px !important;
-        border: 0 !important;
-        border-radius: 16px !important;
-        background: linear-gradient(
-          135deg,
-          #ed4ca4,
-          #9b5de5
-        ) !important;
-        color: white !important;
-        font-size: 16px !important;
-        font-weight: 900 !important;
-        cursor: pointer !important;
-      }
-
-      #relationshipSettingsModal .rs-save:disabled {
-        opacity: 0.6 !important;
-      }
-
-      #relationshipSettingsModal .rs-status {
-        margin-top: 12px !important;
-        text-align: center !important;
-        font-size: 14px !important;
-        font-weight: 700 !important;
-      }
-    `
-
-    document.head.appendChild(style)
-  }
-
-
-  // Make sure Settings button opens the modal
-  const settingsBtn =
-    document.querySelector('.gear')
-
-  if (settingsBtn) {
-
-    settingsBtn.style.zIndex = '999999'
-    settingsBtn.style.pointerEvents = 'auto'
-
-    settingsBtn.onclick = function(event) {
-
-      event.preventDefault()
-      event.stopPropagation()
-
-      if (typeof showSettingsModal === 'function') {
-        showSettingsModal()
-      }
-    }
-  }
-
-})()
-// ==========================================
-// SETTINGS POPUP VISIBILITY FIX
-// ==========================================
-
-(function fixSettingsPopup() {
-
-  // Add popup CSS
-  if (!document.getElementById('settingsPopupCSS')) {
-
-    const style = document.createElement('style')
-    style.id = 'settingsPopupCSS'
-
-    style.textContent = `
-      #relationshipSettingsModal {
-        position: fixed !important;
-        inset: 0 !important;
-        width: 100vw !important;
-        height: 100vh !important;
-        z-index: 999999 !important;
-        display: flex !important;
-        align-items: center !important;
-        justify-content: center !important;
-        padding: 20px !important;
-        box-sizing: border-box !important;
-      }
-
-      #relationshipSettingsModal .rs-backdrop {
-        position: absolute !important;
-        inset: 0 !important;
-        background: rgba(40, 20, 40, 0.35) !important;
-        backdrop-filter: blur(8px) !important;
-        -webkit-backdrop-filter: blur(8px) !important;
-      }
-
-      #relationshipSettingsModal .rs-card {
-        position: relative !important;
-        z-index: 2 !important;
-        width: min(500px, 100%) !important;
-        max-height: 90vh !important;
-        overflow-y: auto !important;
-        box-sizing: border-box !important;
-        padding: 28px 22px !important;
-        border-radius: 28px !important;
-        background: rgba(255,255,255,0.94) !important;
-        border: 1px solid rgba(255,255,255,0.9) !important;
-        box-shadow: 0 25px 80px rgba(70,30,70,0.25) !important;
-        color: #4d3048 !important;
-      }
-
-      #relationshipSettingsModal h2 {
-        margin: 6px 40px 8px 0 !important;
-        font-size: 25px !important;
-      }
-
-      #relationshipSettingsModal p {
-        line-height: 1.6 !important;
-        color: #765b70 !important;
-      }
-
-      #relationshipSettingsModal label {
-        display: block !important;
-        margin-top: 20px !important;
-        font-weight: 800 !important;
-      }
-
-      #relationshipSettingsModal input {
-        display: block !important;
-        width: 100% !important;
-        box-sizing: border-box !important;
-        margin-top: 8px !important;
-        padding: 14px !important;
-        border-radius: 14px !important;
-        border: 1px solid #ead6e5 !important;
-        background: #fff !important;
-        font-size: 16px !important;
-        color: #4d3048 !important;
-      }
-
-      #relationshipSettingsModal .rs-close {
-        position: absolute !important;
-        top: 14px !important;
-        right: 14px !important;
-        width: 40px !important;
-        height: 40px !important;
-        border: 0 !important;
-        border-radius: 50% !important;
-        background: #f8e8f3 !important;
-        color: #633d59 !important;
-        font-size: 26px !important;
-        cursor: pointer !important;
-      }
-
-      #relationshipSettingsModal .rs-kicker {
-        font-size: 12px !important;
-        font-weight: 900 !important;
-        letter-spacing: 1.5px !important;
-        color: #d94d9b !important;
-      }
-
-      #relationshipSettingsModal .rs-preview {
-        margin-top: 16px !important;
-        padding: 13px !important;
-        border-radius: 15px !important;
-        background: linear-gradient(
-          135deg,
-          #fff0f8,
-          #f0ebff
-        ) !important;
-        text-align: center !important;
-        font-weight: 800 !important;
-        color: #bd4d91 !important;
-      }
-
-      #relationshipSettingsModal .rs-save {
-        width: 100% !important;
-        margin-top: 18px !important;
-        padding: 15px !important;
-        border: 0 !important;
-        border-radius: 16px !important;
-        background: linear-gradient(
-          135deg,
-          #ed4ca4,
-          #9b5de5
-        ) !important;
-        color: white !important;
-        font-size: 16px !important;
-        font-weight: 900 !important;
-        cursor: pointer !important;
-      }
-
-      #relationshipSettingsModal .rs-save:disabled {
-        opacity: 0.6 !important;
-      }
-
-      #relationshipSettingsModal .rs-status {
-        margin-top: 12px !important;
-        text-align: center !important;
-        font-size: 14px !important;
-        font-weight: 700 !important;
-      }
-    `
-
-    document.head.appendChild(style)
-  }
-
-
-  // Make sure Settings button opens the modal
-  const settingsBtn =
-    document.querySelector('.gear')
-
-  if (settingsBtn) {
-
-    settingsBtn.style.zIndex = '999999'
-    settingsBtn.style.pointerEvents = 'auto'
-
-    settingsBtn.onclick = function(event) {
-
-      event.preventDefault()
-      event.stopPropagation()
-
-      if (typeof showSettingsModal === 'function') {
-        showSettingsModal()
-      }
-    }
-  }
-
-})()
