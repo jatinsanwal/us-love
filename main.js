@@ -1101,3 +1101,170 @@ setTimeout(() => {
   }
 
 })()
+// ==========================================
+// SETTINGS POPUP VISIBILITY FIX
+// ==========================================
+
+(function fixSettingsPopup() {
+
+  // Add popup CSS
+  if (!document.getElementById('settingsPopupCSS')) {
+
+    const style = document.createElement('style')
+    style.id = 'settingsPopupCSS'
+
+    style.textContent = `
+      #relationshipSettingsModal {
+        position: fixed !important;
+        inset: 0 !important;
+        width: 100vw !important;
+        height: 100vh !important;
+        z-index: 999999 !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        padding: 20px !important;
+        box-sizing: border-box !important;
+      }
+
+      #relationshipSettingsModal .rs-backdrop {
+        position: absolute !important;
+        inset: 0 !important;
+        background: rgba(40, 20, 40, 0.35) !important;
+        backdrop-filter: blur(8px) !important;
+        -webkit-backdrop-filter: blur(8px) !important;
+      }
+
+      #relationshipSettingsModal .rs-card {
+        position: relative !important;
+        z-index: 2 !important;
+        width: min(500px, 100%) !important;
+        max-height: 90vh !important;
+        overflow-y: auto !important;
+        box-sizing: border-box !important;
+        padding: 28px 22px !important;
+        border-radius: 28px !important;
+        background: rgba(255,255,255,0.94) !important;
+        border: 1px solid rgba(255,255,255,0.9) !important;
+        box-shadow: 0 25px 80px rgba(70,30,70,0.25) !important;
+        color: #4d3048 !important;
+      }
+
+      #relationshipSettingsModal h2 {
+        margin: 6px 40px 8px 0 !important;
+        font-size: 25px !important;
+      }
+
+      #relationshipSettingsModal p {
+        line-height: 1.6 !important;
+        color: #765b70 !important;
+      }
+
+      #relationshipSettingsModal label {
+        display: block !important;
+        margin-top: 20px !important;
+        font-weight: 800 !important;
+      }
+
+      #relationshipSettingsModal input {
+        display: block !important;
+        width: 100% !important;
+        box-sizing: border-box !important;
+        margin-top: 8px !important;
+        padding: 14px !important;
+        border-radius: 14px !important;
+        border: 1px solid #ead6e5 !important;
+        background: #fff !important;
+        font-size: 16px !important;
+        color: #4d3048 !important;
+      }
+
+      #relationshipSettingsModal .rs-close {
+        position: absolute !important;
+        top: 14px !important;
+        right: 14px !important;
+        width: 40px !important;
+        height: 40px !important;
+        border: 0 !important;
+        border-radius: 50% !important;
+        background: #f8e8f3 !important;
+        color: #633d59 !important;
+        font-size: 26px !important;
+        cursor: pointer !important;
+      }
+
+      #relationshipSettingsModal .rs-kicker {
+        font-size: 12px !important;
+        font-weight: 900 !important;
+        letter-spacing: 1.5px !important;
+        color: #d94d9b !important;
+      }
+
+      #relationshipSettingsModal .rs-preview {
+        margin-top: 16px !important;
+        padding: 13px !important;
+        border-radius: 15px !important;
+        background: linear-gradient(
+          135deg,
+          #fff0f8,
+          #f0ebff
+        ) !important;
+        text-align: center !important;
+        font-weight: 800 !important;
+        color: #bd4d91 !important;
+      }
+
+      #relationshipSettingsModal .rs-save {
+        width: 100% !important;
+        margin-top: 18px !important;
+        padding: 15px !important;
+        border: 0 !important;
+        border-radius: 16px !important;
+        background: linear-gradient(
+          135deg,
+          #ed4ca4,
+          #9b5de5
+        ) !important;
+        color: white !important;
+        font-size: 16px !important;
+        font-weight: 900 !important;
+        cursor: pointer !important;
+      }
+
+      #relationshipSettingsModal .rs-save:disabled {
+        opacity: 0.6 !important;
+      }
+
+      #relationshipSettingsModal .rs-status {
+        margin-top: 12px !important;
+        text-align: center !important;
+        font-size: 14px !important;
+        font-weight: 700 !important;
+      }
+    `
+
+    document.head.appendChild(style)
+  }
+
+
+  // Make sure Settings button opens the modal
+  const settingsBtn =
+    document.querySelector('.gear')
+
+  if (settingsBtn) {
+
+    settingsBtn.style.zIndex = '999999'
+    settingsBtn.style.pointerEvents = 'auto'
+
+    settingsBtn.onclick = function(event) {
+
+      event.preventDefault()
+      event.stopPropagation()
+
+      if (typeof showSettingsModal === 'function') {
+        showSettingsModal()
+      }
+    }
+  }
+
+})()
